@@ -138,7 +138,7 @@ with col2:
 with col3:
     st.metric(label="Live Soil pH Health", value=f"{sim_ph}", delta="Target: 5.5 - 6.8")
 with col4:
-    st.metric(label="Pest & Climate Risk", value=base_county_row["Pest_Risk"], delta="Fall Armyworm Surveillance ON", delta_value_color="inverse")
+    st.metric(label="Pest & Climate Risk", value=base_county_row["Pest_Risk"], delta="Fall Armyworm Surveillance ON", delta_color="inverse")
 
 st.markdown("---")
 
