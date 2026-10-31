@@ -22,7 +22,7 @@ st.markdown("""
 # --- LOAD UPLOADED EXCEL DATASET ---
 @st.cache_data
 def load_maize_data():
-    file_path = 'Maize-Production-2012-2020-Combined (2).xlsx'
+    file_path = 'Maize-Production-2012-2020-Combined.xlsx'
     df_s4 = pd.read_excel(file_path, sheet_name='Sheet4')
     
     # Clean county names (strip trailing spaces)
