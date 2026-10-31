@@ -4,7 +4,6 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 
-# --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="Kenya 47-County Maize Intelligence Hub",
     page_icon="🌽",
@@ -19,7 +18,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- LOAD UPLOADED EXCEL DATASET ---
+#LOAD UPLOADED EXCEL DATASET
 @st.cache_data
 def load_maize_data():
     file_path = 'Maize-Production-2012-2020-Combined.xlsx'
@@ -40,7 +39,7 @@ def load_maize_data():
 
 df_s4, prod_pivot, area_pivot, yield_pivot = load_maize_data()
 
-# --- SIDEBAR CONTROLS ---
+#SIDEBAR CONTROLS
 st.sidebar.image("https://images.unsplash.com/photo-1599814529177-3e445037eb89?auto=format&fit=crop&w=400&q=80", use_container_width=True)
 st.sidebar.title("🇰🇪 Kenya Maize AI Suite")
 st.sidebar.markdown("Empirical Data & Forecasting Engine")
@@ -54,7 +53,7 @@ sim_rainfall = st.sidebar.slider("Seasonal Rainfall Adjustment (mm)", 300, 1500,
 sim_fertilizer = st.sidebar.slider("Fertilizer Application Intensity (kg/acre)", 0, 100, 40)
 seed_variety = st.sidebar.selectbox("Certified Seed Hybrid", ["H614 (Highland Hybrid)", "H6213 (Drought Tolerant)", "DK777 (Commercial Ultra)", "Local Open Pollinated"])
 
-# --- PREDICTIVE FORECASTING MODEL (2012-2020 TRENDS) ---
+#PREDICTIVE FORECASTING MODEL (2012-2020 TRENDS)
 def get_county_forecast(county):
     row_prod = prod_pivot.loc[county].dropna()
     years = row_prod.index.values.astype(float)
@@ -81,7 +80,7 @@ seed_multiplier = 1.25 if "Drought" in seed_variety and sim_rainfall < 600 else 
 fert_multiplier = 1.0 + (sim_fertilizer / 200.0)
 adjusted_2026_prod = int(pred_2026 * seed_multiplier * fert_multiplier)
 
-# --- MAIN DASHBOARD INTERFACE ---
+#MAIN DASHBOARD INTERFACE
 st.title(f"🌽 Kenya Maize Intelligence Dashboard: {selected_county}")
 st.markdown(f"**Devolved Unit Analysis:** Historical Production Records & Predictive Trend Modeling (2012–2030)")
 
