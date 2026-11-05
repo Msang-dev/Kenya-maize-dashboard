@@ -9,28 +9,36 @@ st.set_page_config(
     layout="wide"
 )
 
-@st.cache_data
-def load_data():
-    uploaded_file = st.sidebar.file_uploader("Upload Maize Production Dataset (CSV)", type=["csv"])
-    
-    if uploaded_file is not None:
-        try:
-            df = pd.read_csv(uploaded_file)
-            return df
-        except Exception as e:
-            st.error(f"Error reading file: {e}")
-            
+def load_data_file(uploaded_file):
     try:
-        df = pd.read_csv("maize_production.csv")
-        return df
-    except FileNotFoundError:
-        st.warning("Default file 'maize_production.csv' not found. Please upload a CSV file using the sidebar.")
-        return pd.DataFrame(columns=["County", "Year", "Area (HA)", "Production (MT)", "Yield(MT/HA)"])
-
-df_data = load_data()
+        if uploaded_file.name.endswith('.csv'):
+            return pd.read_csv(uploaded_file)
+        elif uploaded_file.name.endswith(('.xlsx', '.xls', '.xlsm')):
+            xls = pd.ExcelFile(uploaded_file)
+            if 'Sheet4' in xls.sheet_names:
+                return pd.read_excel(uploaded_file, sheet_name='Sheet4')
+            else:
+                return pd.read_excel(uploaded_file, sheet_name=xls.sheet_names[0])
+    except Exception as e:
+        st.error(f"Error reading file: {e}")
+    return pd.DataFrame()
 
 st.sidebar.title("🇰🇪 Kenya Maize AI Pred")
 st.sidebar.markdown("Empirical Data & Forecasting Engine")
+
+uploaded_file = st.sidebar.file_uploader("Upload Maize Production Dataset (Excel/CSV/XLSM)", type=["xlsx", "xls", "xlsm", "csv"])
+
+if uploaded_file is not None:
+    df_data = load_data_file(uploaded_file)
+else:
+    try:
+        df_data = pd.read_excel("Maize-Production-2012-2020-Combined.xlsx", sheet_name="Sheet4")
+    except Exception:
+        try:
+            df_data = pd.read_csv("maize_production.csv")
+        except Exception:
+            df_data = pd.DataFrame(columns=["County", "Year", "Area (HA)", "Production (MT)", "Yield(MT/HA)"])
+            st.sidebar.warning("Please upload your .xlsm dataset using the file uploader above.")
 
 if not df_data.empty and "County" in df_data.columns:
     counties_list = sorted(df_data["County"].unique().tolist())
