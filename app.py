@@ -16,7 +16,12 @@ def load_data_file(uploaded_file):
         elif uploaded_file.name.endswith(('.xlsx', '.xls', '.xlsm')):
             xls = pd.ExcelFile(uploaded_file)
             if 'Sheet4' in xls.sheet_names:
-                return pd.read_excel(uploaded_file, sheet_name='Sheet4')
+                df_raw = pd.read_excel(uploaded_file, sheet_name='Sheet4')
+                if {'County', 'Year', 'Indicator', 'Value'}.issubset(df_raw.columns):
+                    df_wide = df_raw.pivot_table(index=['County', 'Year'], columns='Indicator', values='Value').reset_index()
+                    df_wide.columns.name = None
+                    return df_wide
+                return df_raw
             else:
                 return pd.read_excel(uploaded_file, sheet_name=xls.sheet_names[0])
     except Exception as e:
@@ -32,16 +37,40 @@ if uploaded_file is not None:
     df_data = load_data_file(uploaded_file)
 else:
     try:
-        df_data = pd.read_excel("Maize-Production-2012-2020-Combined.xlsx", sheet_name="Sheet4")
+        xls = pd.ExcelFile("Maize-Production-2012-2020-Combined.xlsx")
+        if 'Sheet4' in xls.sheet_names:
+            df_raw = pd.read_excel("Maize-Production-2012-2020-Combined.xlsx", sheet_name='Sheet4')
+            df_data = df_raw.pivot_table(index=['County', 'Year'], columns='Indicator', values='Value').reset_index()
+            df_data.columns.name = None
+        else:
+            df_data = pd.read_excel("Maize-Production-2012-2020-Combined.xlsx", sheet_name=0)
     except Exception:
         try:
             df_data = pd.read_csv("maize_production.csv")
         except Exception:
             df_data = pd.DataFrame(columns=["County", "Year", "Area (HA)", "Production (MT)", "Yield(MT/HA)"])
-            st.sidebar.warning("Please upload your .xlsm dataset using the file uploader above.")
+            st.sidebar.warning("Please upload your dataset using the file uploader above.")
+
+# Clean and standardize column names (strip whitespace and normalize variants)
+if not df_data.empty:
+    df_data.columns = df_data.columns.str.strip()
+    col_mapping = {}
+    for col in df_data.columns:
+        col_lower = col.lower()
+        if 'county' in col_lower:
+            col_mapping[col] = 'County'
+        elif 'year' in col_lower:
+            col_mapping[col] = 'Year'
+        elif 'area' in col_lower:
+            col_mapping[col] = 'Area (HA)'
+        elif 'production' in col_lower or 'quantity' in col_lower or 'ton' in col_lower:
+            col_mapping[col] = 'Production (MT)'
+        elif 'yield' in col_lower:
+            col_mapping[col] = 'Yield(MT/HA)'
+    df_data = df_data.rename(columns=col_mapping)
 
 if not df_data.empty and "County" in df_data.columns:
-    counties_list = sorted(df_data["County"].unique().tolist())
+    counties_list = sorted(df_data["County"].dropna().unique().tolist())
     selected_county = st.sidebar.selectbox(
         "Select County (47 Devolved Units)",
         counties_list,
@@ -56,34 +85,34 @@ rainfall = st.sidebar.slider("Seasonal Rainfall Adjustment (mm)", 300, 1500, 850
 fertilizer = st.sidebar.slider("Fertilizer Application Intensity (kg/acre)", 0, 100, 40)
 seed_type = st.sidebar.selectbox("Certified Seed Hybrid", ["H614 (Highland Hybrid)", "DH04 (Dryland Hybrid)", "DK777 (Commercial Ultra)", "Local Open-Pollinated"])
 
-if not df_data.empty and "County" in df_data.columns:
+if not df_data.empty and "County" in df_data.columns and "Year" in df_data.columns:
     county_df = df_data[df_data["County"] == selected_county].sort_values("Year")
     latest_row = county_df[county_df["Year"] == 2020]
     if not latest_row.empty:
-        latest_prod = latest_row["Production (MT)"].values[0]
-        harvested_area = latest_row["Area (HA)"].values[0]
-        yield_val = latest_row["Yield(MT/HA)"].values[0]
+        latest_prod = latest_row["Production (MT)"].values[0] if "Production (MT)" in latest_row else 0
+        harvested_area = latest_row["Area (HA)"].values[0] if "Area (HA)" in latest_row else 0
+        yield_val = latest_row["Yield(MT/HA)"].values[0] if "Yield(MT/HA)" in latest_row else 0
     else:
-        latest_prod = county_df["Production (MT)"].iloc[-1] if not county_df.empty else 0
-        harvested_area = county_df["Area (HA)"].iloc[-1] if not county_df.empty else 0
-        yield_val = county_df["Yield(MT/HA)"].iloc[-1] if not county_df.empty else 0
+        latest_prod = county_df["Production (MT)"].iloc[-1] if not county_df.empty and "Production (MT)" in county_df else 0
+        harvested_area = county_df["Area (HA)"].iloc[-1] if not county_df.empty and "Area (HA)" in county_df else 0
+        yield_val = county_df["Yield(MT/HA)"].iloc[-1] if not county_df.empty and "Yield(MT/HA)" in county_df else 0
 else:
     county_df = pd.DataFrame()
     latest_prod, harvested_area, yield_val = 130151, 68686, 1.89
 
-simulated_prod = int(latest_prod * (rainfall / 850) * (1 + (fertilizer / 200)) * (1.1 if "Hybrid" in seed_type else 0.95))
-pct_change = ((simulated_prod - latest_prod) / latest_prod) * 100 if latest_prod > 0 else 0
+simulated_prod = int(latest_prod * (rainfall / 850) * (1 + (fertilizer / 200)) * (1.1 if "Hybrid" in seed_type else 0.95)) if pd.notnull(latest_prod) else 0
+pct_change = ((simulated_prod - latest_prod) / latest_prod) * 100 if latest_prod and latest_prod > 0 else 0
 
 st.title(f"🌽 Kenya Maize Intelligence Dashboard: {selected_county}")
 st.markdown(f"*Devolved Unit Analysis:* Historical Production Records & Predictive Trend Modelling (2012–2030)")
 
 col1, col2, col3, col4 = st.columns(4)
 with col1:
-    st.metric(label="Latest Recorded Production (2020)", value=f"{latest_prod:,.0f} MT")
+    st.metric(label="Latest Recorded Production (2020)", value=f"{latest_prod:,.0f} MT" if pd.notnull(latest_prod) else "N/A")
 with col2:
-    st.metric(label="Harvested Area", value=f"{harvested_area:,.0f} HA")
+    st.metric(label="Harvested Area", value=f"{harvested_area:,.0f} HA" if pd.notnull(harvested_area) else "N/A")
 with col3:
-    st.metric(label="Yield", value=f"{yield_val:,.2f} MT/HA")
+    st.metric(label="Yield", value=f"{yield_val:,.2f} MT/HA" if pd.notnull(yield_val) else "N/A")
 with col4:
     st.metric(label="Projected Output (2026)", value=f"{simulated_prod:,.0f} MT", delta=f"{pct_change:.1f}% vs latest recorded year")
 
@@ -93,9 +122,9 @@ tab1, tab2, tab3 = st.tabs(["📈 Historical & Forecast", "📊 County Ranking",
 
 with tab1:
     st.subheader(f"Production Trajectory for {selected_county} (2012–2030)")
-    if not county_df.empty:
+    if not county_df.empty and "Year" in county_df and "Production (MT)" in county_df:
         hist_years = county_df["Year"].tolist()
-        hist_prod = county_df["Production (MT)"].tolist()
+        hist_prod = county_df["Production (MT)"].fillna(0).tolist()
     else:
         hist_years, hist_prod = [2020], [130151]
         
@@ -114,13 +143,14 @@ with tab1:
 
 with tab2:
     st.subheader("Top 15 Maize Producing Counties (2020)")
-    if not df_data.empty and "Year" in df_data.columns:
+    if not df_data.empty and "Year" in df_data.columns and "Production (MT)" in df_data.columns:
         df_2020 = df_data[df_data["Year"] == 2020].sort_values(by="Production (MT)", ascending=False)
         top_15 = df_2020.head(15)
         fig_bar = px.bar(top_15, x="County", y="Production (MT)", text="Production (MT)", title="Top Producing Counties in 2020")
         fig_bar.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
         st.plotly_chart(fig_bar, use_container_width=True)
-        st.dataframe(top_15[["County", "Production (MT)", "Area (HA)", "Yield(MT/HA)"]].rename(columns={"Production (MT)": "Production (MT)", "Area (HA)": "Area (HA)", "Yield(MT/HA)" : "Yield (MT/HA)"}), use_container_width=True)
+        display_cols = [c for c in ["County", "Production (MT)", "Area (HA)", "Yield(MT/HA)"] if c in top_15.columns]
+        st.dataframe(top_15[display_cols], use_container_width=True)
     else:
         st.info("Please upload a valid dataset to view county rankings.")
 
