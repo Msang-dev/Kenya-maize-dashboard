@@ -543,7 +543,7 @@ with col4:
 
 st.markdown("---")
 
-# DASHBOARD TABS (4 Tabs)
+# DASHBOARD TABS (4 Core Tabs)
 
 tab1, tab2, tab3, tab4 = st.tabs(
     [
